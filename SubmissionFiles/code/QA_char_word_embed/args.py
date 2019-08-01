@@ -160,6 +160,18 @@ def get_train_args():
                         help='DNumber of warm-up steps of learning rate')
     parser.add_argument('--glove_dim',
                         type=int,
+                        default=96,
+                        help='Dimension of connectors of each layer')
+    parser.add_argument('--num_heads',
+                        type=int,
+                        default=1,
+                        help='"Number of heads in multi-head attention')
+    parser.add_argument('--dropout_char',
+                        type=float,
+                        default=0.05,
+                        help='Dropout prob across the layers')
+    parser.add_argument('--lr_warm_up_num',
+
                         default=300,
                         help='Size of GloVe word vectors to use')
     parser.add_argument('--char_dim',

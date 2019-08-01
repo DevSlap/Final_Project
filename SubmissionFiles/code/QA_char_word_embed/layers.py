@@ -1,4 +1,4 @@
-"""The layers of the reading comprhensions model
+"""The layers of the reading comprehension architecture
    Used by models.py.
 """
 
@@ -12,15 +12,8 @@ from util import masked_softmax
 
 
 class Embedding(nn.Module):
-    """Embedding layer used by BiDAF, without the character-level component.
+    """Embedding layer used by BiDAF, word embeddings.
 
-    Word-level embeddings are further refined using a 2-layer Highway Encoder
-    (see `HighwayEncoder` class for details).
-
-    Args:
-        word_vectors (torch.Tensor): Pre-trained word vectors.
-        hidden_size (int): Size of hidden activations.
-        drop_prob (float): Probability of zero-ing out activations
     """
     def __init__(self, word_vectors, hidden_size, drop_prob):
         super(Embedding, self).__init__()
@@ -38,54 +31,26 @@ class Embedding(nn.Module):
         return emb
 
 class EmbeddingChar(nn.Module):
-    """Embedding layer used by BiDAF, with the character-level component.
-    Word-level embeddings are further refined using a 2-layer Highway Encoder
-    (see `HighwayEncoder` class for details).
-    Args:
-        word_vectors (torch.Tensor): Pre-trained word vectors. # (word_vocab_size, word_emb_size)
-        char_vectors (torch.Tensor): Random character vectors. # (char_vocab_size, char_emb_size)
-        hidden_size (int): Size of hidden activations.
-        drop_prob (float): Probability of zero-ing out activations
-
-    Remark:
-        'char_vectors' is a randomly initialized matrix of character embeddings
-        'vocab_size' is determined from the training set
     """
-
+    Embedding layer word +  character-level component.
+    """
     def __init__(self, word_vectors, char_vectors, hidden_size, drop_prob):
         super(EmbeddingChar, self).__init__()
         self.drop_prob = drop_prob
-
         # word embedding
         self.word_emb_size = word_vectors.size(1)
         self.embed = nn.Embedding.from_pretrained(word_vectors)
-
         # character embedding
         self.char_emb_size = char_vectors.size(1)
         self.char_embed = nn.Embedding.from_pretrained(char_vectors, freeze=False)
-
         # CNN layer
         n_filters = self.word_emb_size
         kernel_size = 5
         self.cnn = CNN(self.char_emb_size, n_filters, k=kernel_size)
-
         self.proj = nn.Linear(2 * self.word_emb_size, hidden_size, bias=False)
         self.hwy = HighwayEncoder(2, hidden_size)
 
     def forward(self, x_word, x_char):
-        """
-        Return the embedding for the words in a batch of sentences.
-        Computed from the concatenation of a word-based lookup embedding and a character-based CNN embedding
-
-        Args:
-            'x_word' (torch.Tensor): Tensor of integers of shape (batch_size, seq_len) where
-                each integer is an index into the word vocabulary
-            'x_char' (torch.Tensor): Tensor of integers of shape (batch_size, seq_len, max_word_len) where
-                each integer is an index into the character vocabulary
-        Return:
-            'emb' (torch.Tensor): Tensor of shape (batch_size, seq_len, hidden_size)containing the embeddings for each word of the sentences in the batch
-        """
-
         # char embedding
         _, seq_len, max_word_len = x_char.size()
         # reshape to a batch of characters word-sequence
@@ -98,33 +63,18 @@ class EmbeddingChar(nn.Module):
         emb_char = self.cnn(emb_char)  # (b, n_channel_out = word_emb_size)
         # reshape to a batch of sentences of words embeddings
         emb_char = emb_char.view(-1, seq_len, self.word_emb_size)  # (batch_size, seq_len, word_emb_size)
-
         # word embedding
         emb_word = self.embed(x_word)  # (batch_size, seq_len, word_emb_size)
-
         # concatenate the char and word embeddings
         emb = torch.cat((emb_word, emb_char), 2)  # (batch_size, seq_len, 2*word_emb_size)
-
         emb = F.dropout(emb, self.drop_prob, self.training)
         emb = self.proj(emb)  # (batch_size, seq_len, hidden_size)
         emb = self.hwy(emb)  # (batch_size, seq_len, hidden_size)
-
         return emb
 
 
 class Embedding_Char(nn.Module):
-    """Embedding layer used by BiDAF, with the character-level component.
-    Word-level embeddings are further refined using a 2-layer Highway Encoder
-    (see `HighwayEncoder` class for details).
-    Args:
-        word_vectors (torch.Tensor): Pre-trained word vectors. # (word_vocab_size, word_emb_size)
-        char_vectors (torch.Tensor): Random character vectors. # (char_vocab_size, char_emb_size)
-        hidden_size (int): Size of hidden activations.
-        drop_prob (float): Probability of zero-ing out activations
-
-    Remark:
-        'char_vectors' is a randomly initialized matrix of character embeddings
-        'vocab_size' is determined from the training set
+    """Embedding layer  with the word + character-level component.
     """
 
     def __init__(self, word_vectors, char_vectors, hidden_size, drop_prob):
@@ -148,19 +98,6 @@ class Embedding_Char(nn.Module):
         self.hwy = HighwayEncoder(2, hidden_size)
 
     def forward(self, x_word, x_char):
-        """
-        Return the embedding for the words in a batch of sentences.
-        Computed from the concatenation of a word-based lookup embedding and a character-based CNN embedding
-
-        Args:
-            'x_word' (torch.Tensor): Tensor of integers of shape (batch_size, seq_len) where
-                each integer is an index into the word vocabulary
-            'x_char' (torch.Tensor): Tensor of integers of shape (batch_size, seq_len, max_word_len) where
-                each integer is an index into the character vocabulary
-        Return:
-            'emb' (torch.Tensor): Tensor of shape (batch_size, seq_len, hidden_size)containing the embeddings for each word of the sentences in the batch
-        """
-
         # char embedding
         _, seq_len, max_word_len = x_char.size()
         # reshape to a batch of characters word-sequence
@@ -188,34 +125,11 @@ class Embedding_Char(nn.Module):
 
 
 class CNN(nn.Module):
-    """Convolutional layer
-    1st stage of computing a word embedding from its char embeddings
-
-    Remark: process each word in the batch independently
-    """
-
     def __init__(self, char_emb_size, f, k=5):
-        """Init CNN
-
-        Args:
-            'char_emb_size' (int): character Embedding Size (nb of input channels)
-            'f' (int): number of filters (nb of output channels)
-            'k' (int, default=5): kernel (window) size
-        """
         super(CNN, self).__init__()
         self.conv1D = nn.Conv1d(char_emb_size, f, k, bias=True)
 
     def forward(self, X_reshaped):
-        """Compute the first stage of the word embedding
-
-        Args:
-            'X_reshaped' (Tensor, shape=(b, char_emb_size, max_word_length)): char-embedded words
-                b = batch of words size
-
-        Returns:
-            'X_conv_out' (Tensor, shape=(b, f)): output of the convolutional layer
-        """
-
         X_conv = self.conv1D(X_reshaped)  # (b, f, max_word_length - k +1)
 
         # pooling layer to collapse the last dimension
@@ -226,15 +140,6 @@ class CNN(nn.Module):
 
 class HighwayEncoder(nn.Module):
     """Encode an input sequence using a highway network.
-
-    Based on the paper:
-    "Highway Networks"
-    by Rupesh Kumar Srivastava, Klaus Greff, Jürgen Schmidhuber
-    (https://arxiv.org/abs/1505.00387).
-
-    Args:
-        num_layers (int): Number of layers in the highway encoder.
-        hidden_size (int): Size of hidden activations.
     """
     def __init__(self, num_layers, hidden_size):
         super(HighwayEncoder, self).__init__()
@@ -254,16 +159,7 @@ class HighwayEncoder(nn.Module):
 
 
 class RNNEncoder(nn.Module):
-    """General-purpose layer for encoding a sequence using a bidirectional RNN.
-
-    Encoded output is the RNN's hidden state at each position, which
-    has shape `(batch_size, seq_len, hidden_size * 2)`.
-
-    Args:
-        input_size (int): Size of a single timestep in the input.
-        hidden_size (int): Size of the RNN hidden state.
-        num_layers (int): Number of layers of RNN cells to use.
-        drop_prob (float): Probability of zero-ing out activations.
+    """ encoding a sequence using a bidirectional RNN.
     """
     def __init__(self,
                  input_size,
@@ -319,19 +215,7 @@ class RNNEncoder(nn.Module):
 
 
 class BiDAFAttention(nn.Module):
-    """Bidirectional attention originally used by BiDAF.
-
-    Bidirectional attention computes attention in two directions:
-    The context attends to the query and the query attends to the context.
-    The output of this layer is the concatenation of [context, c2q_attention,
-    context * c2q_attention, context * q2c_attention]. This concatenation allows
-    the attention vector at each timestep, along with the embeddings from
-    previous layers, to flow through the attention layer to the modeling layer.
-    The output has shape (batch_size, context_len, 8 * hidden_size).
-
-    Args:
-        hidden_size (int): Size of hidden activations.
-        drop_prob (float): Probability of zero-ing out activations.
+    """Bidirectional attention flow layer  used by BiDAF paper.
     """
     def __init__(self, hidden_size, drop_prob=0.1):
         super(BiDAFAttention, self).__init__()
@@ -362,15 +246,7 @@ class BiDAFAttention(nn.Module):
         return x
 
     def get_similarity_matrix(self, c, q):
-        """Get the "similarity matrix" between context and query (using the
-        terminology of the BiDAF paper).
-
-        A naive implementation as described in BiDAF would concatenate the
-        three vectors then project the result with a single weight matrix. This
-        method is a more memory-efficient implementation of the same operation.
-
-        See Also:
-            Equation 1 in https://arxiv.org/abs/1611.01603
+        """Get the "similarity matrix" between context and query
         """
         c_len, q_len = c.size(1), q.size(1)
         c = F.dropout(c, self.drop_prob, self.training)  # (bs, c_len, hid_size)
@@ -387,17 +263,14 @@ class BiDAFAttention(nn.Module):
 
 
 class BiDAFOutput(nn.Module):
-    """Output layer used by BiDAF for question answering.
+    """Output layer
 
-    Computes a linear transformation of the attention and modeling
+    Linear transformation of the attention and modeling
     outputs, then takes the softmax of the result to get the start pointer.
     A bidirectional LSTM is then applied the modeling output to produce `mod_2`.
     A second linear+softmax of the attention output and `mod_2` is used
     to get the end pointer.
 
-    Args:
-        hidden_size (int): Hidden size used in the BiDAF model.
-        drop_prob (float): Probability of zero-ing out activations.
     """
     def __init__(self, hidden_size, drop_prob):
         super(BiDAFOutput, self).__init__()

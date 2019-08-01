@@ -2,18 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-# from config import config
-
-# D = config.connector_dim
-# Nh = config.num_heads
-# Dword = config.glove_dim
-# Dchar = config.char_dim
-# batch_size = config.batch_size
-# dropout = config.dropout
-# dropout_char = config.dropout_char
-#
-# Lc = config.para_limit
-# Lq = config.ques_limit
 
 
 def mask_logits(inputs, mask):

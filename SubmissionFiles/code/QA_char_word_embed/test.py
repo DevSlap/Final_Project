@@ -1,4 +1,4 @@
-"""Test a model and generate submission CSV.
+"""Test the model and generate xml file output.
 
 
 """

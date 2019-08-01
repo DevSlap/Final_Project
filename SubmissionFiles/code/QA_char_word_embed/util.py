@@ -24,27 +24,6 @@ from collections import Counter
 
 
 class SQuAD(data.Dataset):
-    """Stanford Question Answering Dataset (SQuAD).
-
-    Each item in the dataset is a tuple with the following entries (in order):
-        - context_idxs: Indices of the words in the context.
-            Shape (context_len,).
-        - context_char_idxs: Indices of the characters in the context.
-            Shape (context_len, max_word_len).
-        - question_idxs: Indices of the words in the question.
-            Shape (question_len,).
-        - question_char_idxs: Indices of the characters in the question.
-            Shape (question_len, max_word_len).
-        - y1: Index of word in the context where the answer begins.
-            -1 if no answer.
-        - y2: Index of word in the context where the answer ends.
-            -1 if no answer.
-        - id: ID of the example.
-
-    Args:
-        data_path (str): Path to .npz file containing pre-processed dataset.
-        use_v2 (bool): Whether to use SQuAD 2.0 questions. Otherwise only use SQuAD 1.1.
-    """
     def __init__(self, data_path, use_v2=True):
         super(SQuAD, self).__init__()
 
@@ -95,15 +74,6 @@ def collate_fn(examples):
     """Create batch tensors from a list of individual examples returned
     by `SQuAD.__getitem__`. Merge examples of different length by padding
     all examples to the maximum length in the batch.
-
-    Args:
-        examples (list): List of tuples of the form (context_idxs, context_char_idxs,
-        question_idxs, question_char_idxs, y1s, y2s, ids).
-
-    Returns:
-        examples (tuple): Tuple of tensors (context_idxs, context_char_idxs, question_idxs,
-        question_char_idxs, y1s, y2s, ids). All of shape (batch_size, ...), where
-        the remaining dimensions are the maximum length of examples in the input.
 
     Adapted from:
         https://github.com/yunjey/seq2seq-dataloader
@@ -176,11 +146,6 @@ class AverageMeter:
 
 
 class EMA:
-    """Exponential moving average of model parameters.
-    Args:
-        model (torch.nn.Module): Model with parameters whose EMA will be kept.
-        decay (float): Decay rate for exponential moving average.
-    """
     def __init__(self, model, decay):
         self.decay = decay
         self.shadow = {}
@@ -213,11 +178,6 @@ class EMA:
                 param.data = self.shadow[name]
 
     def resume(self, model):
-        """Restore original parameters to a model. That is, put back
-        the values that were in each parameter at the last call to `assign`.
-        Args:
-            model (torch.nn.Module): Model to assign parameter values.
-        """
         for name, param in model.named_parameters():
             if param.requires_grad:
                 assert name in self.shadow
@@ -226,20 +186,6 @@ class EMA:
 
 class CheckpointSaver:
     """Class to save and load model checkpoints.
-
-    Save the best checkpoints as measured by a metric value passed into the
-    `save` method. Overwrite checkpoints with better checkpoints once
-    `max_checkpoints` have been saved.
-
-    Args:
-        save_dir (str): Directory to save checkpoints.
-        max_checkpoints (int): Maximum number of checkpoints to keep before
-            overwriting old ones.
-        metric_name (str): Name of metric used to determine best model.
-        maximize_metric (bool): If true, best checkpoint is that which maximizes
-            the metric value passed in via `save`. Otherwise, best checkpoint
-            minimizes the metric.
-        log (logging.Logger): Optional logger for printing information.
     """
     def __init__(self, save_dir, max_checkpoints, metric_name,
                  maximize_metric=False, log=None):
@@ -325,18 +271,6 @@ class CheckpointSaver:
 
 
 def load_model(model, checkpoint_path, gpu_ids, return_step=True):
-    """Load model parameters from disk.
-
-    Args:
-        model (torch.nn.DataParallel): Load parameters into this model.
-        checkpoint_path (str): Path to checkpoint to load.
-        gpu_ids (list): GPU IDs for DataParallel.
-        return_step (bool): Also return the step at which checkpoint was saved.
-
-    Returns:
-        model (torch.nn.DataParallel): Model loaded from checkpoint.
-        step (int): Step at which checkpoint was saved. Only if `return_step`.
-    """
     device = 'cuda:{}'.format(gpu_ids[0]) if gpu_ids else 'cpu'
     ckpt_dict = torch.load(checkpoint_path, map_location=device)
 
@@ -351,12 +285,6 @@ def load_model(model, checkpoint_path, gpu_ids, return_step=True):
 
 
 def get_available_devices():
-    """Get IDs of all available GPUs.
-
-    Returns:
-        device (torch.device): Main device (GPU 0 or CPU).
-        gpu_ids (list): List of IDs of all GPUs that are available.
-    """
     gpu_ids = []
     if torch.cuda.is_available():
         gpu_ids += [gpu_id for gpu_id in range(torch.cuda.device_count())]
@@ -372,16 +300,6 @@ def masked_softmax(logits, mask, dim=-1, log_softmax=False):
     """Take the softmax of `logits` over given dimension, and set
     entries to 0 wherever `mask` is 0.
 
-    Args:
-        logits (torch.Tensor): Inputs to the softmax function.
-        mask (torch.Tensor): Same shape as `logits`, with 0 indicating
-            positions that should be assigned 0 probability in the output.
-        dim (int): Dimension over which to take softmax.
-        log_softmax (bool): Take log-softmax rather than regular softmax.
-            E.g., some PyTorch functions such as `F.nll_loss` expect log-softmax.
-
-    Returns:
-        probs (torch.Tensor): Result of taking masked softmax over the logits.
     """
     mask = mask.type(torch.float32)
     masked_logits = mask * logits + (1 - mask) * -1e30
@@ -492,14 +410,6 @@ def prettify(elem):
 def save_preds(preds, save_dir, file_name='predictions.csv'):
     """Save predictions `preds` to a CSV file named `file_name` in `save_dir`.
 
-    Args:
-        preds (list): List of predictions each of the form (id, start, end),
-            where id is an example ID, and start/end are indices in the context.
-        save_dir (str): Directory in which to save the predictions file.
-        file_name (str): File name for the CSV file.
-
-    Returns:
-        save_path (str): Path where CSV file was saved.
     """
     # Validate format
     if (not isinstance(preds, list)
@@ -519,16 +429,6 @@ def save_preds(preds, save_dir, file_name='predictions.csv'):
 
 def get_save_dir(base_dir, name, training, id_max=100):
     """Get a unique save directory by appending the smallest positive integer
-    `id < id_max` that is not already taken (i.e., no dir exists with that id).
-
-    Args:
-        base_dir (str): Base directory in which to make save directories.
-        name (str): Name to identify this training run. Need not be unique.
-        training (bool): Save dir. is for training (determines subdirectory).
-        id_max (int): Maximum ID number before raising an exception.
-
-    Returns:
-        save_dir (str): Path to a new directory with a unique name.
     """
     for uid in range(1, id_max):
         subdir = 'train' if training else 'test'
@@ -597,15 +497,7 @@ def get_logger(log_dir, name):
 
 
 def torch_from_json(path, dtype=torch.float32):
-    """Load a PyTorch Tensor from a JSON file.
 
-    Args:
-        path (str): Path to the JSON file to load.
-        dtype (torch.dtype): Data type of loaded array.
-
-    Returns:
-        tensor (torch.Tensor): Tensor loaded from JSON file.
-    """
     with open(path, 'r') as fh:
         array = np.array(json.load(fh))
 
@@ -615,28 +507,6 @@ def torch_from_json(path, dtype=torch.float32):
 
 
 def discretize(p_start, p_end, max_len=15, no_answer=False):
-    """Discretize soft predictions to get start and end indices.
-
-    Choose the pair `(i, j)` of indices that maximizes `p1[i] * p2[j]`
-    subject to `i <= j` and `j - i + 1 <= max_len`.
-
-    Args:
-        p_start (torch.Tensor): Soft predictions for start index.
-            Shape (batch_size, context_len).
-        p_end (torch.Tensor): Soft predictions for end index.
-            Shape (batch_size, context_len).
-        max_len (int): Maximum length of the discretized prediction.
-            I.e., enforce that `preds[i, 1] - preds[i, 0] + 1 <= max_len`.
-        no_answer (bool): Treat 0-index as the no-answer prediction. Consider
-            a prediction no-answer if `preds[0, 0] * preds[0, 1]` is greater
-            than the probability assigned to the max-probability span.
-
-    Returns:
-        start_idxs (torch.Tensor): Hard predictions for start index.
-            Shape (batch_size,)
-        end_idxs (torch.Tensor): Hard predictions for end index.
-            Shape (batch_size,)
-    """
     if p_start.min() < 0 or p_start.max() > 1 \
             or p_end.min() < 0 or p_end.max() > 1:
         raise ValueError('Expected p_start and p_end to have values in [0, 1]')
@@ -676,20 +546,7 @@ def discretize(p_start, p_end, max_len=15, no_answer=False):
 
 
 def convert_tokens(eval_dict, qa_id, y_start_list, y_end_list, no_answer):
-    """Convert predictions to tokens from the context.
 
-    Args:
-        eval_dict (dict): Dictionary with eval info for the dataset. This is
-            used to perform the mapping from IDs and indices to actual text.
-        qa_id (int): List of QA example IDs.
-        y_start_list (list): List of start predictions.
-        y_end_list (list): List of end predictions.
-        no_answer (bool): Questions can have no answer. E.g., SQuAD 2.0.
-
-    Returns:
-        pred_dict (dict): Dictionary index IDs -> predicted answer text.
-        sub_dict (dict): Dictionary UUIDs -> predicted answer text (submission).
-    """
     pred_dict = {}
     sub_dict = {}
     for qid, y_start, y_end in zip(qa_id, y_start_list, y_end_list):

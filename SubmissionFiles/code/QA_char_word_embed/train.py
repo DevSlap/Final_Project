@@ -1,4 +1,4 @@
-"""Train a model on SQuAD.
+"""Train the model.
 
 
 """

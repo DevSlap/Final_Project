@@ -1,7 +1,4 @@
-"""Download and pre-process SQuAD and GloVe.
-
-
-
+"""Download dataset and GloVe.
 """
 
 import numpy as np

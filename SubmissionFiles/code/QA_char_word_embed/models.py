@@ -8,24 +8,7 @@ import torch.nn as nn
 
 
 class BiDAF(nn.Module):
-    """Baseline BiDAF model for SQuAD.
-
-    Based on the paper:
-    "Bidirectional Attention Flow for Machine Comprehension"Masters
-    by Minjoon Seo, Aniruddha Kembhavi, Ali Farhadi, Hannaneh Hajishirzi
-    (https://arxiv.org/abs/1611.01603).
-
-    Follows a high-level structure commonly found in SQuAD models:
-        - Embedding layer: Embed word indices to get word vectors.
-        - Encoder layer: Encode the embedded sequence.
-        - Attention layer: Apply an attention mechanism to the encoded sequence.
-        - Model encoder layer: Encode the sequence again.
-        - Output layer: Simple layer (e.g., fc + softmax) to get final outputs.
-
-    Args:
-        word_vectors (torch.Tensor): Pre-trained word vectors.
-        hidden_size (int): Number of features in the hidden state at each layer.
-        drop_prob (float): Dropout probability.
+    """Baseline  model for SQuAD, no character embedding.
     """
     def __init__(self, word_vectors, hidden_size, rnn_type, drop_prob=0.):
         super(BiDAF, self).__init__()
@@ -62,8 +45,7 @@ class BiDAF(nn.Module):
         c_enc = self.enc(c_emb, c_len)    # (batch_size, c_len, 2 * hidden_size)
         q_enc = self.enc(q_emb, q_len)    # (batch_size, q_len, 2 * hidden_size)
 
-        att = self.att(c_enc, q_enc,
-                       c_mask, q_mask)    # (batch_size, c_len, 8 * hidden_size)
+        att = self.att(c_enc, q_enc, c_mask, q_mask)    # (batch_size, c_len, 8 * hidden_size)
 
         mod = self.mod(att, c_len)        # (batch_size, c_len, 2 * hidden_size)
 
@@ -72,24 +54,7 @@ class BiDAF(nn.Module):
         return out
 
 class BiDAF_word_char_embedding(nn.Module):
-    """Baseline BiDAF model for SQuAD.
-
-    Based on the paper:
-    "Bidirectional Attention Flow for Machine Comprehension"Masters
-    by Minjoon Seo, Aniruddha Kembhavi, Ali Farhadi, Hannaneh Hajishirzi
-    (https://arxiv.org/abs/1611.01603).
-
-    Follows a high-level structure commonly found in SQuAD models:
-        - Embedding layer: Embed word indices to get word vectors.
-        - Encoder layer: Encode the embedded sequence.
-        - Attention layer: Apply an attention mechanism to the encoded sequence.
-        - Model encoder layer: Encode the sequence again.
-        - Output layer: Simple layer (e.g., fc + softmax) to get final outputs.
-
-    Args:
-        word_vectors (torch.Tensor): Pre-trained word vectors.
-        hidden_size (int): Number of features in the hidden state at each layer.
-        drop_prob (float): Dropout probability.
+    """Model with character and word embedding.
     """
     def __init__(self, word_vectors, char_vectors, hidden_size, rnn_type, drop_prob=0.):
         super(BiDAF_word_char_embedding, self).__init__()
@@ -127,11 +92,8 @@ class BiDAF_word_char_embedding(nn.Module):
         c_enc = self.enc(c_emb, c_len)    # (batch_size, c_len, 2 * hidden_size)
         q_enc = self.enc(q_emb, q_len)    # (batch_size, q_len, 2 * hidden_size)
 
-        att = self.att(c_enc, q_enc,
-                       c_mask, q_mask)    # (batch_size, c_len, 8 * hidden_size)
-
+        att = self.att(c_enc, q_enc, c_mask, q_mask)    # (batch_size, c_len, 8 * hidden_size)
         mod = self.mod(att, c_len)        # (batch_size, c_len, 2 * hidden_size)
-
         out = self.out(att, mod, c_mask)  # 2 tensors, each (batch_size, c_len)
 
         return out
